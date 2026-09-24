@@ -1,0 +1,101 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to publish"
+        required: true
+        default: "testpypi"
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+permissions:
+  contents: read
+  id-token: write   # Trusted publishing, no API token needed
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run pyright
+      - run: uv run pytest
+      - run: uv build
+
+      - name: Verify the package declares no dependencies
+        # The weight argument is why this package exists apart from the
+        # platform's own. A dependency added here reaches every author's
+        # machine, so it fails the release rather than shipping quietly.
+        run: |
+          deps=$(uv run python -c "
+          import tomllib, pathlib
+          p = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+          print(len(p['project']['dependencies']))
+          ")
+          if [ "$deps" != "0" ]; then
+            echo "::error::pyproject declares $deps dependencies, expected 0."
+            exit 1
+          fi
+
+      - name: Verify the published surface is still two names
+        # ADR-045 fixes it. A third export is a decision, not a commit.
+        run: |
+          names=$(uv run python -c "
+          import runware_serverless
+          print(','.join(sorted(runware_serverless.__all__)))
+          ")
+          if [ "$names" != "endpoint,serve" ]; then
+            echo "::error::__all__ is '$names', expected 'endpoint,serve'."
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'testpypi'
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/runware-serverless
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pypi')
+    environment:
+      name: pypi
+      url: https://pypi.org/p/runware-serverless
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

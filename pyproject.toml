@@ -1,0 +1,67 @@
+[project]
+name = "runware-serverless"
+version = "0.1.0"
+description = "Write a Runware Serverless app: the serve and endpoint decorators, with nothing to install beyond the standard library."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Runware", email = "support@runware.ai" }]
+keywords = [
+    "runware",
+    "serverless",
+    "gpu",
+    "inference",
+    "deployment",
+    "machine-learning",
+    "generative-ai",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = []
+
+# Only runware_serverless.schema needs these, and only a handler that takes an
+# image does. The base install stays empty so it cannot conflict with a model's
+# own requirements.
+[project.optional-dependencies]
+schema = ["pillow", "pydantic>=2"]
+
+[project.urls]
+Documentation = "https://runware.ai/docs/serverless/writing-a-model"
+Source = "https://github.com/Runware/runware-serverless"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff==0.15.20", "pyright==1.1.411", "pillow", "pydantic>=2"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+runware_serverless = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
