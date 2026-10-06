@@ -26,7 +26,7 @@ runware serverless deploy model.py --id image-tools --gpu-type h100
 
 See [the Serverless documentation](https://runware.ai/docs/serverless/writing-a-model) for the whole picture. This package is only the part your editor needs.
 
-[`examples/`](examples/) has two apps you can deploy as they are: the smallest one that works, and one with two endpoints whose request shapes have nothing in common.
+[Runware/runware-serverless-examples](https://github.com/Runware/runware-serverless-examples) holds apps you can deploy as they are, each one the code behind a page in [the documentation](https://runware.ai/docs/serverless/examples).
 
 ## What the decorators do
 
