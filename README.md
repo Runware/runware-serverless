@@ -38,6 +38,22 @@ Neither one wraps what it decorates. Both record and hand the class or the metho
 
 **It can run more than once.** A load that runs out of VRAM is retried with a larger request, and the retry re-instantiates your class, so both `__init__` and `load` have to be safe to repeat.
 
+## Declaring your model's dependencies
+
+List what your model imports beyond the standard library as a `requirements` attribute on the class:
+
+```python
+@serve
+class ImageTools:
+    requirements = ["torch==2.5.1", "diffusers>=0.31"]
+
+    def load(self) -> None: ...
+```
+
+It has to be a list or tuple of strings, and the name is reserved, so a handler called `requirements` is refused.
+
+The build reads **the first list it finds**: this attribute, then whatever the deploy passed as `--requirement`, then a `pyproject.toml` and `uv.lock` in your source directory. Declaring it on the class and on the deploy at the same time **fails the build** rather than picking one.
+
 ## What it does not do
 
 This package holds no serving machinery, no build logic and no runtime. The base install declares no dependencies at all, so it costs you nothing and it cannot conflict with your model's own requirements.
@@ -97,7 +113,7 @@ GPU type, worker counts, idle TTL and concurrency are set on the app, through th
 
 See [Compute and scaling](https://runware.ai/docs/serverless/compute-and-scaling).
 
-## Requirements
+## Python version
 
 Python 3.10 or newer, and nothing else unless you annotate an image, which needs the `schema` extra above.
 
