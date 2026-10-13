@@ -52,9 +52,8 @@ so it looks for a `pydantic.BaseModel` subclass and skips anything else
 `PIL.Image.Image`, so a bare `def handler(self, image: Base64RGBImage)` is never
 coerced and the handler receives the raw string, with no validation on the way
 in. Every app that uses these types puts them on a model field, which is the
-shape that works. Reported as [RUNSERV-1053](https://runware.atlassian.net/browse/RUNSERV-1053),
-where the bare-parameter form came from this README saying "a handler that takes
-an image annotates it".
+shape that works. The bare-parameter form came from this README saying "a handler
+that takes an image annotates it", which is why the wording changed.
 
 ## Why this matters more here than elsewhere
 
@@ -72,4 +71,4 @@ Attribute-based discovery is what makes the drift survivable. It narrows the sur
 
 ## What is deliberately absent
 
-`requirements` is part of the published surface in ADR-045 and is not implemented anywhere yet, here or in the platform. It is tracked as RUNSERV-884 and is not MVP. When it arrives it is a class attribute the build reads, so this package will need to do nothing but document it.
+A `${NAME}` placeholder inside a requirement string is not resolved, so a requirement that needs a credential, such as a private git URL, cannot be built. Giving the build a way to read a secret is undecided.
