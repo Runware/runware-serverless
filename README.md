@@ -1,8 +1,8 @@
 # runware-serverless
 
-The surface you write a Runware Serverless App against: two decorators, and nothing else to install.
+The surface you write a Runware Serverless app against: two decorators, with no dependencies in the base install.
 
-To start, use the one-command install. It installs the CLI, or uses the CLI that you already have. If that CLI is too old, the install updates it. Then the install creates an App directory with `runware serverless init`.
+To start, use the one-command install. It installs the CLI, or uses the CLI that you already have. If that CLI is too old, the install updates it. Then the install creates an app directory with `runware serverless init`.
 
 macOS / Linux:
 
@@ -22,11 +22,15 @@ If you already have the CLI:
 runware serverless init my-app
 ```
 
-`init` creates the App directory `my-app` with a `pyproject.toml`, a starter `app.py` and a `.venv` that has the Serverless library (`runware-serverless`) as a dev dependency. `init` installs nothing globally: the Serverless library goes only into the App directory's `.venv`. If `uv` is on your `PATH`, `init` uses `uv`. If not, `init` uses Python 3.10 or newer.
+`init` creates the app directory `my-app` with a `pyproject.toml`, a starter `app.py` and a `.venv` that has the package (`runware-serverless`) as a dev dependency. `init` installs nothing globally: the package goes only into the app directory's `.venv`. If `uv` is on your `PATH`, `init` uses `uv`. If not, `init` uses Python 3.10 or newer.
 
-To log in and deploy the starter App, see the [Serverless quick start](https://github.com/Runware/runware-cli#serverless-quick-start) in the CLI README.
+To use a different app name, replace `my-app` in each command. The name is also the app ID for `deploy --id`. An app ID has 6 to 30 characters: lowercase letters, digits and `-`. It starts with a letter and ends with a letter or a digit.
 
-An App looks like this:
+To log in and deploy the starter app, see the [Serverless quickstart](https://runware.ai/docs/serverless/quickstart).
+
+To add the package to a project that you already have, install it in that project's virtual environment: run `uv add --dev runware-serverless`, or run `python -m pip install runware-serverless` with that environment active.
+
+An app looks like this:
 
 ```python
 from runware_serverless import endpoint, serve
@@ -46,23 +50,23 @@ class ImageTools:
 runware serverless deploy app.py --id image-tools --gpu-type h100
 ```
 
-See [the Serverless documentation](https://runware.ai/docs/serverless/writing-a-model) for the whole picture. The Serverless library is only the part your editor needs.
+See [the Serverless documentation](https://runware.ai/docs/serverless/writing-a-model) for the whole picture. The package is only the part your editor needs.
 
-[Runware/runware-serverless-examples](https://github.com/Runware/runware-serverless-examples) holds Apps you can deploy as they are, each one the code behind a page in [the documentation](https://runware.ai/docs/serverless/examples).
+[Runware/runware-serverless-examples](https://github.com/Runware/runware-serverless-examples) holds apps you can deploy as they are, each one the code behind a page in [the documentation](https://runware.ai/docs/serverless/examples).
 
 ## What the decorators do
 
-**`@serve`** marks the class as the App. **`@endpoint`** marks a method as callable, at the path its own name derives: `run_upscale` serves `run-upscale`.
+**`@serve`** marks the class as the app. **`@endpoint`** marks a method as callable, at the path its own name derives: `run_upscale` serves `run-upscale`.
 
 Neither one wraps what it decorates. Both record and hand the class or the method straight back, so your file stays importable and your own tests can instantiate the class and call its handlers directly.
 
-`load` runs before any request reaches the worker. It is required, even when there is nothing to load, because it is part of how the platform identifies an App.
+`load` runs before any request reaches the worker. It is required, even when there is nothing to load, because it is part of how the platform identifies an app.
 
 **It can run more than once.** A load that runs out of VRAM is retried with a larger request, and the retry re-instantiates your class, so both `__init__` and `load` have to be safe to repeat.
 
-## Declaring your App's dependencies
+## Declaring your app's dependencies
 
-List what your App imports beyond the standard library as a `requirements` attribute on the class:
+List what your app imports beyond the standard library as a `requirements` attribute on the class:
 
 ```python
 @serve
@@ -74,15 +78,15 @@ class ImageTools:
 
 It has to be a list or tuple of strings, and the name is reserved, so a handler called `requirements` is refused.
 
-The build reads **the first list it finds**: this attribute, then whatever the deploy passed as `--requirement`, then a `pyproject.toml` and `uv.lock` in your App directory. Declaring it on the class and on the deploy at the same time **fails the build** rather than picking one.
+The build reads **the first list it finds**: this attribute, then whatever the deploy passed as `--requirement`, then a `pyproject.toml` and `uv.lock` in your app directory. Declaring it on the class and on the deploy at the same time **fails the build** rather than picking one.
 
 ## What it does not do
 
-The Serverless library holds no serving machinery, no build logic and no runtime. The base install declares no dependencies at all, so it costs you nothing and it cannot conflict with your App's own requirements.
+The package holds no serving machinery, no build logic and no runtime. The base install declares no dependencies at all, so it costs you nothing and it cannot conflict with your app's own requirements.
 
 When you deploy, Runware supplies the implementation behind these same two names. That is why the decorators record rather than execute: the marks they leave are what the platform reads when it imports your file.
 
-You do not need to list the Serverless library in your own requirements. A deploy ignores it if you do, and serves its own copy either way.
+You do not need to list the package in your own requirements. A deploy ignores it if you do, and serves its own copy either way.
 
 ## Images in a request
 
@@ -122,17 +126,17 @@ is passed through untouched and your method receives the raw string.
 `Base64RGBAImage` is the same thing for an image whose alpha channel has to
 survive. `Base64RGBImage` converts to RGB.
 
-These are the one part of the Serverless library with dependencies, Pillow and
-pydantic, so they come as an extra rather than in the base install. Add the extra
-in the App directory, not globally.
+These are the one part of the package with dependencies, Pillow and pydantic, so
+they come as an extra rather than in the base install. Add the extra in the app
+directory, not globally.
 
-If `uv` is on your `PATH`, run this command in the App directory:
+If `uv` is on your `PATH`, run this command in the app directory:
 
 ```shell
 uv add --dev 'runware-serverless[schema]'
 ```
 
-If not, install the extra with the Python in the App directory's `.venv`:
+If not, install the extra with the Python in the app directory's `.venv`:
 
 ```shell
 .venv/bin/python -m pip install 'runware-serverless[schema]'
@@ -144,9 +148,9 @@ The `pip` command does not change `pyproject.toml`. To record the extra, find th
 `runware-serverless` entry in the `dev` list under `[dependency-groups]`. Then add
 `[schema]` after the name, for example `runware-serverless[schema]`.
 
-## Configuration lives on the App
+## Configuration lives on the app
 
-GPU type, worker counts, idle TTL and concurrency are set on the App, through the CLI, the API or the dashboard, and are changeable while it is serving. None of them are expressible in your source file, and the decorators take no arguments for them.
+GPU type, worker counts, idle TTL and concurrency are set on the app, through the CLI, the API or the dashboard, and are changeable while it is serving. None of them are expressible in your source file, and the decorators take no arguments for them.
 
 See [Compute and scaling](https://runware.ai/docs/serverless/compute-and-scaling).
 
