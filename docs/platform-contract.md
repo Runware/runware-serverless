@@ -11,18 +11,23 @@ That arrangement only holds while both agree on what a decorator leaves behind.
 | Attribute | Where it is stamped | Read by |
 | --- | --- | --- |
 | `__runware_endpoint_path__` | each decorated handler | the build, to discover declared endpoints |
+| `__runware_endpoint_default__` | the handler marked `default=True`, and no other | the build, to decide which endpoint a root invocation reaches |
 | `__runware_serve_options__` | the decorated class | the worker, for what `serve` was called with |
 | `runware_serverless.schema` | a field of a request model | the build, to publish that field's JSON schema, and the worker, to decode what a caller sent |
 
 Discovery is attribute-based rather than call-based: the platform reads `__runware_endpoint_path__` off the imported class instead of calling any function this package provides. That is what lets the two packages hold different versions without breaking, and it is the reason the attribute name is public.
 
-The path derivation has to match too. A path is the method name with underscores turned into hyphens, and it has to satisfy:
+The path derivation has to match too. A path is the method name with underscores turned into hyphens, or whatever `path=` names instead, and it has to satisfy:
 
 ```
-^[a-z]([a-z0-9-]{0,62}[a-z0-9])?$
+^[a-z]([a-z0-9-]{0,62}[a-z0-9])?(/[a-z]([a-z0-9-]{0,62}[a-z0-9])?)*$
 ```
+
+with the whole path at most 255 characters, which the pattern bounds per segment and not in total.
 
 That pattern is held in lockstep across several places in the platform, and this package carries a copy. A copy that drifts would accept a name the platform later refuses, which turns an import-time error into a failed build.
+
+The one default an app marks is not enforced here. A second `default=True` is refused by the build, which is the only place that sees every handler at once.
 
 ## The image annotations are a different kind of agreement
 

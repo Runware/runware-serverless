@@ -15,14 +15,25 @@ from typing import Any, TypeVar, overload
 DEFAULT_ENDPOINT_PATH = "predict"
 """Path a class serves when it decorates nothing and defines ``predict``."""
 
-ENDPOINT_PATH_PATTERN = r"^[a-z]([a-z0-9-]{0,62}[a-z0-9])?$"
-"""Lowercase, starts with a letter, letters digits and hyphens, up to 64."""
+ENDPOINT_PATH_PATTERN = r"^[a-z]([a-z0-9-]{0,62}[a-z0-9])?(/[a-z]([a-z0-9-]{0,62}[a-z0-9])?)*$"
+"""One or more lowercase segments joined by slashes, each up to 64."""
+
+MAX_ENDPOINT_PATH_LENGTH = 255
+"""The whole path, which the pattern bounds per segment and not in total."""
 
 ENDPOINT_PATH_ATTRIBUTE = "__runware_endpoint_path__"
 """Where ``endpoint`` records a method's path.
 
 Public deliberately: it is how the builder discovers declared endpoints, so the
 name is part of the contract rather than an implementation detail.
+"""
+
+ENDPOINT_DEFAULT_ATTRIBUTE = "__runware_endpoint_default__"
+"""Where ``endpoint`` records that a method is the app's default.
+
+Public for the same reason, and absent rather than ``False`` on every other
+handler: the build reads the attribute to decide which endpoint a root
+invocation reaches.
 """
 
 SERVE_OPTIONS_ATTRIBUTE = "__runware_serve_options__"
@@ -39,8 +50,8 @@ class EndpointArgumentError(TypeError):
 
     def __init__(self, given: object) -> None:
         super().__init__(
-            f"@endpoint takes no arguments and decorates a method, got {given!r}. "
-            "The path is the method name with underscores turned into hyphens."
+            f"@endpoint decorates a method, got {given!r}. A path is the path "
+            "keyword: @endpoint(path='v1/chat/completions')."
         )
 
 
@@ -49,9 +60,19 @@ class EndpointNameError(ValueError):
 
     def __init__(self, name: str, path: str) -> None:
         super().__init__(
-            f"{name} derives the path {path!r}, which is not legal. A path is "
-            "lowercase, starts with a letter, holds letters digits and hyphens, "
-            "and is at most 64 characters."
+            f"{name} would serve the path {path!r}, which is not legal. A path "
+            "is one or more lowercase segments joined by slashes, each starting "
+            "with a letter and holding letters digits and hyphens, up to 64 "
+            f"characters per segment and {MAX_ENDPOINT_PATH_LENGTH} in all."
+        )
+
+
+class DuplicateEndpointError(ValueError):
+    """Two methods claim one endpoint path."""
+
+    def __init__(self, path: str, first: str, second: str) -> None:
+        super().__init__(
+            f"duplicate endpoint path {path!r}: claimed by both {first!r} and {second!r}"
         )
 
 
@@ -72,26 +93,59 @@ class ServeOptions:
     encode_response: Callable[[list[Any]], Any] | None = None
 
 
-def endpoint(handler: _HandlerT) -> _HandlerT:
-    """Mark a method as callable at the path its name derives.
+@overload
+def endpoint(handler: _HandlerT) -> _HandlerT: ...
 
-    ``run_upscale`` serves ``run-upscale``. The handler comes back unwrapped, so
-    its signature, annotations and defaults stay exactly as written, for the
+
+@overload
+def endpoint(
+    handler: None = None,
+    *,
+    path: str | None = None,
+    default: bool = False,
+) -> Callable[[_HandlerT], _HandlerT]: ...
+
+
+def endpoint(
+    handler: _HandlerT | None = None,
+    *,
+    path: str | None = None,
+    default: bool = False,
+) -> _HandlerT | Callable[[_HandlerT], _HandlerT]:
+    """Mark a method as callable.
+
+    Bare, the path is the method name with each underscore turned into a
+    hyphen, so ``run_upscale`` serves ``run-upscale``. ``path`` names a route
+    the method name cannot spell, ``v1/chat/completions`` among them, and
+    ``default`` marks the endpoint a root invocation reaches, which an app
+    marks once at most. The handler comes back unwrapped either way, so its
+    signature, annotations and defaults stay exactly as written, for the
     platform's schema introspection and for a type checker.
 
-    ``@endpoint("run-upscale")`` is rejected by name rather than reaching the
-    method: the path is not configurable, and the argument form is the mistake a
-    reader of another framework's decorator arrives with. The type variable is
-    bound to ``Callable``, so that spelling is a type error at the decoration
-    site as well as a ``TypeError`` at import.
+    ``@endpoint("run-upscale")`` is refused: a path is the ``path`` keyword,
+    and the positional form is the mistake a reader of another framework's
+    decorator arrives with. The type variable is bound to ``Callable``, so that
+    spelling is a type error at the decoration site as well as a ``TypeError``
+    at import.
     """
-    if not callable(handler):
-        raise EndpointArgumentError(handler)
-    path = handler.__name__.replace("_", "-")
-    if _endpoint_path_pattern.fullmatch(path) is None:
-        raise EndpointNameError(handler.__name__, path)
-    setattr(handler, ENDPOINT_PATH_ATTRIBUTE, path)
-    return handler
+
+    def decorate(method: _HandlerT) -> _HandlerT:
+        resolved = path if path is not None else method.__name__.replace("_", "-")
+        if (
+            len(resolved) > MAX_ENDPOINT_PATH_LENGTH
+            or _endpoint_path_pattern.fullmatch(resolved) is None
+        ):
+            raise EndpointNameError(method.__name__, resolved)
+        setattr(method, ENDPOINT_PATH_ATTRIBUTE, resolved)
+        if default:
+            setattr(method, ENDPOINT_DEFAULT_ATTRIBUTE, True)
+        return method
+
+    if handler is not None:
+        if not callable(handler):
+            raise EndpointArgumentError(handler)
+        return decorate(handler)
+    return decorate
 
 
 def endpoints(model_class: type) -> dict[str, Callable[..., Any]]:
@@ -99,17 +153,32 @@ def endpoints(model_class: type) -> dict[str, Callable[..., Any]]:
 
     Scans the whole MRO, so a class built on a shared base serves the base's
     endpoints too, and each path resolves through ``model_class`` so an override
-    serves its own implementation whether or not it decorates it again.
+    serves its own implementation whether or not it decorates it again. A
+    subclass that decorates the inherited name again replaces the inherited
+    path rather than adding a second one.
+
+    Two different method names that claim one path raise rather than letting
+    the later one win: an explicit ``path`` makes that collision easy to write,
+    and a registry that resolved it silently would pass a customer's own tests
+    and then fail their build.
 
     A class that decorates nothing falls back to ``predict`` at the default
     path. A class with neither raises.
     """
     declared: dict[str, Callable[..., Any]] = {}
-    for klass in reversed(model_class.__mro__):
+    claimed_by: dict[str, str] = {}
+    stamped: set[str] = set()
+    for klass in model_class.__mro__:
         for name, member in vars(klass).items():
+            if name in stamped:
+                continue
             path = getattr(member, ENDPOINT_PATH_ATTRIBUTE, None)
             if path is None or not callable(member):
                 continue
+            stamped.add(name)
+            owner = claimed_by.setdefault(path, name)
+            if owner != name:
+                raise DuplicateEndpointError(path, owner, name)
             declared[path] = getattr(model_class, name)
     if declared:
         return declared

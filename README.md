@@ -56,7 +56,7 @@ See [the Serverless documentation](https://runware.ai/docs/serverless/writing-a-
 
 ## What the decorators do
 
-**`@serve`** marks the class as the app. **`@endpoint`** marks a method as callable, at the path its own name derives: `run_upscale` serves `run-upscale`.
+**`@serve`** marks the class as the app. **`@endpoint`** marks a method as callable, at the path its own name derives: `run_upscale` serves `run-upscale`. It takes two optional keyword arguments: `path`, for a route a method name cannot spell, such as `@endpoint(path="v1/chat/completions")`, and `default=True`, for the endpoint a root invocation reaches with no path at all.
 
 Neither one wraps what it decorates. Both record and hand the class or the method straight back, so your file stays importable and your own tests can instantiate the class and call its handlers directly.
 
