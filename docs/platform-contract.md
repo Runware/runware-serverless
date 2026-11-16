@@ -25,14 +25,14 @@ The path derivation has to match too. A path is the method name with underscores
 
 with the whole path at most 255 characters, which the pattern bounds per segment and not in total.
 
-That pattern is held in lockstep across several places in the platform, and this package carries a copy. A copy that drifts would accept a name the platform later refuses, which turns an import-time error into a failed build.
+That pattern is held in lockstep across several places in the platform, and this package keeps a copy. A copy that drifts would accept a name the platform later refuses, which turns an import-time error into a failed build.
 
 The one default an app marks is not enforced here. A second `default=True` is refused by the build, which is the only place that sees every handler at once.
 
 ## The image annotations are a different kind of agreement
 
 `serve` and `endpoint` are markers. The platform reads two attribute names off
-an imported class and nothing else this package does is observable, which is
+an imported class, and nothing else this package does is observable. That is
 what makes a version difference between a customer's copy and the platform's
 survivable.
 
@@ -56,9 +56,9 @@ so it looks for a `pydantic.BaseModel` subclass and skips anything else
 (`serving/model.py`, `_model_annotation`). `Base64RGBImage` subclasses
 `PIL.Image.Image`, so a bare `def handler(self, image: Base64RGBImage)` is never
 coerced and the handler receives the raw string, with no validation on the way
-in. Every app that uses these types puts them on a model field, which is the
+in. Every app that uses these types puts them on a model field, the
 shape that works. The bare-parameter form came from this README saying "a handler
-that takes an image annotates it", which is why the wording changed.
+that takes an image annotates it", and the wording changed for that reason.
 
 ## Why this matters more here than elsewhere
 
@@ -70,7 +70,16 @@ Attribute-based discovery is what makes the drift survivable. It narrows the sur
 
 - **Never rename either attribute.** Renaming one is a breaking change for every already-deployed app, not just for new installs, because the platform reads the attribute a customer's installed version stamped.
 - **Never change the path derivation** without changing it in the platform in the same release.
-- **Do not add a name to `__all__`** without deciding it is supportable for years. ADR-045 fixes the published surface at `serve`, `endpoint`, the `load` method, the `requirements` attribute and the handler signature convention.
+- **Do not add a name to `__all__`** without deciding it is supportable for years. The published
+surface is `serve`, `endpoint`, `imports`, the `load` method, the `requirements` attribute and the
+handler signature convention. `imports` is the only name added since the surface was first closed.
+- **`imports` suppresses nothing here, and that is the whole of its implementation.** The platform's
+own copy suppresses what the block raises while it is building, from a flag this package does not
+have. Publishing that flag would publish a second name for a phase that never happens on an author's
+machine, and an author who could set it could turn the suppression on in production. The one thing
+that has to match is the annotation: `__exit__` returns `Literal[False]`, because annotated `bool` it
+makes pyright read every name the block binds as possibly unbound, and working around that is what the
+block exists to stop.
 - **Never let the schema types drift from the platform's copy**, and never add a type there without adding it to both. The decorators tolerate a version gap; these do not.
 - **Keep the base dependency list empty.** The weight argument is the reason this package exists separately from the platform's own.
 

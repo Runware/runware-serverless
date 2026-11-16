@@ -41,15 +41,16 @@ jobs:
             exit 1
           fi
 
-      - name: Verify the published surface is still two names
-        # ADR-045 fixes it. A third export is a decision, not a commit.
+      - name: Verify the published surface is still three names
+        # Three on purpose. A fourth export is a decision, not a commit: every
+        # name here is a compatibility promise for as long as this package lives.
         run: |
           names=$(uv run python -c "
           import runware_serverless
           print(','.join(sorted(runware_serverless.__all__)))
           ")
-          if [ "$names" != "endpoint,serve" ]; then
-            echo "::error::__all__ is '$names', expected 'endpoint,serve'."
+          if [ "$names" != "endpoint,imports,serve" ]; then
+            echo "::error::__all__ is '$names', expected 'endpoint,imports,serve'."
             exit 1
           fi
 

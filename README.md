@@ -80,11 +80,53 @@ It has to be a list or tuple of strings, and the name is reserved, so a handler 
 
 The build reads **the first list it finds**: this attribute, then whatever the deploy passed as `--requirement`, then a `pyproject.toml` and `uv.lock` in your app directory. Declaring it on the class and on the deploy at the same time **fails the build** rather than picking one.
 
+## Serving-time imports
+
+The build imports your file to find its endpoints, and it does that with none of your
+dependencies installed, so a module-level `import torch` fails the build. Put those imports in
+a block:
+
+```python
+from runware_serverless import endpoint, imports, serve
+
+with imports():
+    from my_model.manager import InferenceManager
+
+
+@serve
+class MyModel:
+    manager: "InferenceManager | None" = None
+
+    def load(self) -> None:
+        self.manager = InferenceManager()
+
+    @endpoint
+    def predict(self, prompt: str) -> str:
+        return self.manager.run(prompt)
+```
+
+At serving time the block runs and binds its names at module scope, so `load` and your handlers
+use them without importing again. At build time the platform suppresses whatever the block
+raises.
+
+**The quotes on the annotation are needed.** At build time the import was suppressed, so the
+name is unbound, and a class-level annotation is evaluated when the class body runs. A module
+with `from __future__ import annotations` needs no quotes, because every annotation in it is
+already a string.
+
+**The block holds imports and nothing else.** A statement in it that fails for its own reason
+is suppressed at build time too, and silently.
+
+**Your own machine is not a build.** This package suppresses nothing, so a missing dependency
+is your own `ImportError` at the line that caused it. A test suite that imports your model file
+therefore needs your serving dependencies installed, where imports inside `load` let the file
+import anywhere.
+
 ## What it does not do
 
-The package holds no serving machinery, no build logic and no runtime. The base install declares no dependencies at all, so it costs you nothing and it cannot conflict with your app's own requirements.
+The package has no serving machinery, no build logic and no runtime. The base install declares no dependencies, so it adds nothing to your install and cannot conflict with your app's own requirements.
 
-When you deploy, Runware supplies the implementation behind these same two names. That is why the decorators record rather than execute: the marks they leave are what the platform reads when it imports your file.
+When you deploy, Runware supplies the implementation behind these same three names. That is why the decorators record rather than execute: the marks they leave are what the platform reads when it imports your file.
 
 You do not need to list the package in your own requirements. A deploy ignores it if you do, and serves its own copy either way.
 

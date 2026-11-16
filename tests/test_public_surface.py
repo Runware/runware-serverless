@@ -7,7 +7,8 @@ customer's own test suite would do.
 
 import pytest
 
-from runware_serverless import endpoint, serve
+import runware_serverless
+from runware_serverless import endpoint, imports, serve
 from runware_serverless._endpoints import (
     ENDPOINT_DEFAULT_ATTRIBUTE,
     ENDPOINT_PATH_ATTRIBUTE,
@@ -20,6 +21,17 @@ from runware_serverless._endpoints import (
     endpoints,
     serve_options,
 )
+
+
+def test_the_published_surface_is_three_names():
+    """`publish.yml` refuses a fourth name, and this says what the three are.
+
+    The names are what a customer imports, so a rename or an addition is a
+    compatibility promise for as long as the distribution lives.
+    """
+    assert runware_serverless.__all__ == ["endpoint", "imports", "serve"]
+    assert runware_serverless.imports is imports
+    assert all(hasattr(runware_serverless, name) for name in runware_serverless.__all__)
 
 
 def test_a_customer_can_call_their_own_method_directly():
