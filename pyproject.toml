@@ -37,6 +37,7 @@ schema = ["pillow", "pydantic>=2"]
 [project.urls]
 Documentation = "https://runware.ai/docs/serverless/writing-a-model"
 Source = "https://github.com/Runware/runware-serverless"
+Changelog = "https://github.com/Runware/runware-serverless/releases"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff==0.15.20", "pyright==1.1.411", "pillow", "pydantic>=2"]

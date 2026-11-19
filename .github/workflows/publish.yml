@@ -71,3 +71,30 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    # After PyPI, never before: a release announcing a version that failed to
+    # upload points at nothing installable. Its own job so the publishing job
+    # keeps read-only contents.
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the release from the changelog
+        # tests/test_changelog.py has already failed the run if the tag's
+        # section is missing, so this reads what that test proved is there.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          notes=$(python3 scripts/changelog_section.py "${TAG#v}")
+          # Idempotent, so re-running the workflow after a flake is safe: a
+          # release that already exists is updated rather than failing the run.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            printf '%s\n' "$notes" | gh release edit "$TAG" --notes-file -
+          else
+            printf '%s\n' "$notes" | gh release create "$TAG" --title "$TAG" --notes-file -
+          fi
